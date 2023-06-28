@@ -1,0 +1,277 @@
+---
+title: "Untitled"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## R Markdown
+
+This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+
+When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
+
+
+```{r warning = FALSE, message = FALSE}
+# Se borran todos los objetos de la memoria
+
+rm(list =ls())
+
+
+## PASO 1: Instalar librerias y configurar directorio de trabajo
+
+# Se cargan las librerias de trabajo
+
+
+library("tidyverse")
+library(kableExtra)
+
+
+
+## PASO 2: Incorporar el archivo de trabajo al ambiente de R
+
+
+link <- "http://cdn.buenosaires.gob.ar/datosabiertos/datasets/donacion-y-trasplante-de-organos-y-tejidos-en-la-ciudad-de-buenos-aires/trasplantes.csv"
+
+Basetrasplantes <- read.csv(link, sep = ";", encoding = "UTF-8") #Leemos datos desde link
+
+Basetrasplantesrecod <- Basetrasplantes %>% 
+  mutate("SexoRecod" = case_when(SEXO == "MASC" ~ "Masculino",
+                                 SEXO == "FEM" ~ "Femenino",
+                                 SEXO == "MASC " ~ "Masculino",
+                                 SEXO == "FEM " ~ "Femenino"),
+         "Región" = case_when(COMUNA %in% c("COMUNA 12","COMUNA 13","COMUNA 14","COMUNA 02") ~ "Norte",
+                              COMUNA %in% c("COMUNA 05","COMUNA 06","COMUNA 07","COMUNA 10","COMUNA 11","COMUNA 15","COMUNA 01","COMUNA 03") ~ "Centro",
+                              COMUNA %in% c("COMUNA 08","COMUNA 04","COMUNA 09") ~ "Sur",
+                              COMUNA == "" ~ "Sin Informar"),
+         "Edad" = case_when(EDAD >= 0 & EDAD < 10 ~ "Menores de 10",
+                            EDAD >= 10 & EDAD < 20 ~ "de 10 hasta 20",
+                            EDAD >= 20 & EDAD < 30 ~ "de 20 hasta 30",
+                            EDAD >= 30 & EDAD < 40 ~ "de 30 hasta 40",
+                            EDAD >= 40 & EDAD < 50 ~ "de 40 hasta 50",
+                            EDAD >= 50 & EDAD < 60 ~ "de 50 hasta 60",
+                            TRUE ~ "Mayores de 60"))
+
+
+```
+
+
+
+```{r warning = FALSE, message = FALSE}
+##############################################################################################################################################
+###GRAFICO 1 Casos según Sexo y Región
+
+ggplot(Basetrasplantesrecod %>% 
+         filter(Región != "Sin Informar"), aes(x = Región , fill = SexoRecod))+ #quitamos sin informar, rellenamos según sexo
+  geom_bar(position = position_dodge(width = 1), width = 0.7)+ #separamos las barras y especificamos ancho y separación
+  geom_text(stat = 'count', aes( x = Región, label = ..count..), position = position_dodge(width = 0.9), vjust =-0.3, hjust = -0.3)+#etiquetas
+  scale_fill_manual(values = c("#7c4739","#bae8e8"))+#coloreamos las barras
+  theme_minimal()+ #elegimos tema
+  labs(title = "Casos según sexo",
+       caption = "Datos Abiertos CABA",
+       fill = "")+ #titulos y el fill vacio elimina titulo de referencia
+  theme(plot.title = element_text( hjust = 0.5 , vjust = 0.5))+#titulo centrado
+  coord_flip()# giramos el gráfico
+```
+
+
+```{r warning = FALSE, message = FALSE}
+###GRAFICO 2 Evolución casos por región
+
+Tabla1 <- Basetrasplantesrecod %>% 
+  select(PERIODO, Región) %>% 
+  filter(Región != "Sin Informar") %>% 
+  group_by(PERIODO, Región) %>% 
+  summarise(Total = n())
+
+Desde <- min(Tabla1$PERIODO) #creamos objetos para el titulo
+Hasta <- max(Tabla1$PERIODO)
+
+ggplot(Tabla1, aes(x = PERIODO, y = Total, color = Región ))+ #seleccionamos variables a graficar y a colorear
+  geom_line()+ 
+  geom_point()+
+  # geom_smooth(method = 'loess',
+  #             formula = 'y ~ x')+
+  labs(title = paste0("Casos Trasplantes en Caba ",Desde,"-",Hasta),
+       subtitle = "Evolución de trasplantes según región",
+       caption = "Datos Abiertos CABA",
+       y = "Trasplantes",
+       x = "Período")+
+  scale_color_manual(values = c("#1ac0c6", "#e74645","#facd60"))+ #coloreamos las lineas
+  theme_minimal()+
+  theme(plot.title = element_text( hjust = 0.5 , vjust = 0.5), 
+        plot.subtitle = element_text( hjust = 0.5 , vjust = 0.5))
+```
+
+
+```{r warning = FALSE, message = FALSE}
+###GRAFICO 3 Boxplot edad por región
+
+ggplot(Basetrasplantesrecod %>% 
+         filter(Región != "Sin Informar"),aes(x = Región , y = EDAD))+
+  geom_boxplot(color ="#001f7d" )+
+  labs(title = paste0("Casos Trasplantes en Caba ",Desde,"-",Hasta),
+       subtitle = "Edad según Región",
+       caption = "Datos Abiertos CABA",
+       y = "Región",
+       x = "Edad")+
+  theme_minimal()+
+  theme(plot.title = element_text( hjust = 0.5 , vjust = 0.5),
+        plot.subtitle = element_text( hjust = 0.5 , vjust = 0.5))
+
+```
+
+
+
+```{r warning = FALSE, message = FALSE}
+###GRAFICO 4 Sectores
+
+Tabla2 <- Basetrasplantesrecod %>% 
+  select(SexoRecod) %>% 
+  group_by(SexoRecod) %>% 
+  summarise(Casos = n()) %>%
+  mutate(porcentaje = round(Casos/sum(Casos)*100,2)) %>% 
+  mutate(CasosPorcentaje = paste0(Casos," ( % ", porcentaje, ")")) #se agrega armado de etiqueta
+
+
+ggplot(Tabla2,aes(x="",y=Casos, fill=SexoRecod))+
+  geom_bar(stat = "identity",width = 0.5)+
+  geom_text(aes(label = CasosPorcentaje),
+            position=position_stack(vjust=0.5)) + #se agrega etiqueta generada en la tabla
+  scale_fill_manual(values = c("#7c4739","#bae8e8"))+ # se colorean los sectores
+  labs(title = paste0("Casos Trasplantes en Caba ",Desde,"-",Hasta), #titulo concatenado
+       subtitle = "Proporción según Sexo",
+       caption = "Datos Abiertos CABA",
+       y = "",
+       x = "")+
+  theme_minimal()+
+  theme(plot.title = element_text( hjust = 0.5 , vjust = 0.5),
+        plot.subtitle = element_text( hjust = 0.5 , vjust = 0.5),
+        legend.position = "bottom",
+        legend.title = element_blank())+ #se quita titulo de la legenda y se posición abajo
+  guides(fill = guide_legend(reverse = TRUE))+ "se invierte el orden de la leyenda"
+  coord_flip()
+
+
+
+```
+
+```{r warning = FALSE, message = FALSE}
+###GRAFICO 5 COMPOSICIÓN DE CASOS POR REGIÓN
+
+Tabla3 <- Basetrasplantesrecod %>%
+  #filter(Región != "Sin Informar") %>% 
+  select(PERIODO,SexoRecod) %>% 
+  group_by(PERIODO,SexoRecod) %>% 
+  summarise(Casos = n()) %>%
+  mutate(porcentaje = round(Casos/sum(Casos)*100,2)) %>% 
+  mutate(CasosPorcentaje = paste0(Casos," ( % ", porcentaje, ")"))
+
+Tablaaux <- Tabla3 %>% 
+  select(PERIODO) %>% 
+  filter(!duplicated(PERIODO))
+
+filas <- nrow(Tablaaux)
+
+
+ggplot(Tabla3,aes(x="",y=Casos, fill=SexoRecod))+
+  geom_bar(stat = "identity",color="white",width = 1)+
+  geom_text(aes(label = CasosPorcentaje),
+            position=position_stack(vjust=0.5)) +
+  scale_fill_manual(values = c("#1ac0c6","#fb7756"))+
+  labs(title = paste0("Casos Trasplantes en Caba ",Desde,"-",Hasta),
+       subtitle = "Proporción según Sexo y Región",
+       caption = "Datos Abiertos CABA",
+       y = "",
+       x = "")+
+  theme_minimal()+
+  theme(plot.title = element_text( hjust = 0.5 , vjust = 0.5),
+        plot.subtitle = element_text( hjust = 0.5 , vjust = 0.5),
+        legend.position = "bottom",
+        legend.title = element_blank())+
+  guides(fill = guide_legend(reverse = TRUE))+
+  coord_flip()+
+  facet_wrap(~PERIODO, nrow = filas) #se wrapea por periodo
+
+
+
+```
+
+```{r warning = FALSE, message = FALSE}
+###GRAFICO 6 Evolución de casos y evolución acumulada
+
+Tabla4 <- Basetrasplantesrecod %>%
+  select(PERIODO) %>% 
+  group_by(PERIODO) %>% 
+  summarise(Casos = n()) %>%
+  mutate(porcentaje = round(Casos/sum(Casos)*100,2)) %>% 
+  mutate(CasosPorcentaje = paste0(Casos," ( % ", porcentaje, ")")) %>% 
+  mutate(Casos_Acumulados = cumsum(Casos)) # se toman casos acumulados
+
+
+
+ggplot(Tabla4, aes(x= PERIODO))+
+  geom_line(aes(y = Casos), color = "#1ac0c6")+
+  geom_point(aes(y = Casos), color = "#1ac0c6")+
+  geom_line(aes(y = Casos_Acumulados),color ="#001f7d")+
+  geom_point(aes(y = Casos_Acumulados),color ="#001f7d")+
+  geom_text(aes(y = Casos_Acumulados, label = Casos_Acumulados), color = "#001f7d", vjust= -0.4)+
+  geom_text(aes(y = Casos, label = Casos), color = "#1ac0c6", vjust= -0.4)+
+   labs(title = paste0("Casos Trasplantes en Caba ",Desde,"-",Hasta),
+       subtitle = "Evolución casos acumulados",
+       caption = "Datos Abiertos CABA",
+       y = "Casos",
+       x = "Período")+
+  theme_classic()+
+  theme(plot.title = element_text( hjust = 0.5 , vjust = 0.5),
+        plot.subtitle = element_text( hjust = 0.5 , vjust = 0.5))
+
+
+
+```
+
+
+
+```{r warning = FALSE, message = FALSE}
+###GRAFICO 7 Piramide de Edad
+
+TotalCasos <- nrow(Basetrasplantesrecod) #se arma objeto con total
+
+Tabla5 <- Basetrasplantesrecod %>%
+  select(Edad, SexoRecod) %>% 
+  group_by(Edad, SexoRecod) %>% 
+  summarise(Casos = n()) %>% 
+  mutate(porc = Casos/TotalCasos*100) %>% #se divide sobre el total de los casos
+  mutate(porc2 =case_when(SexoRecod == "Femenino" ~ porc,
+                             SexoRecod == "Masculino"~ as.double(porc*(-1))))
+
+
+ggplot(Tabla5, aes(x= Edad,
+                   y=porc2,
+                   fill= SexoRecod))+
+  geom_col(data = Tabla5 %>% 
+             filter(SexoRecod == "Masculino"), width = 0.5 , fill = "#1ac0c6")+ #columnas hombres
+  geom_col(data = Tabla5 %>% 
+             filter(SexoRecod == "Femenino"), width = 0.5 , fill = "#fb7756")+ #columnas mujeres
+     labs(title = paste0("Casos Trasplantes en Caba ",Desde,"-",Hasta),
+       subtitle = "Evolución casos acumulados",
+       caption = "Datos Abiertos CABA",
+       y = "Hombres                                 Mujeres", #se agrega eje y separado para mostrar referencias
+       x = "Edad")+
+  coord_flip()+
+  theme_minimal()+
+  scale_x_discrete(limit = c("Menores de 10","de 10 hasta 20","de 20 hasta 30","de 30 hasta 40","de 40 hasta 50"))+ #se reordena las categorias
+  scale_y_continuous(breaks = c(-8,-4,0,4,8), #se especifican los cortes
+                     labels = c("8%","4%","0","4%","8%"))+ #se especifican los nombres de los cortes
+  theme(plot.title = element_text( hjust = 0.5 , vjust = 0.5),
+        plot.subtitle = element_text( hjust = 0.5 , vjust = 0.5))
+  
+
+
+
+```
+
+
+
